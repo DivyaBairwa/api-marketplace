@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  role          String         @default("USER")
+  apiKey        String         @unique
+  createdAt     DateTime       @default(now())
+  subscriptions Subscription[]
+  callLogs      CallLog[]
+}
+
+model CatalogAPI {
+  id            String         @id @default(cuid())
+  name          String
+  description   String
+  slug          String         @unique
+  endpoint      String
+  method        String         @default("GET")
+  pricePerQuota Int
+  quotaAmount   Int
+  quotaPacks    String
+  dummyResponse String
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  subscriptions Subscription[]
+  callLogs      CallLog[]
+}
+
+model Subscription {
+  id             String     @id @default(cuid())
+  userId         String
+  catalogAPIId   String
+  remainingCalls Int
+  totalPurchased Int
+  createdAt      DateTime   @default(now())
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  api            CatalogAPI @relation(fields: [catalogAPIId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, catalogAPIId])
+  @@index([userId])
+}
+
+model CallLog {
+  id             String     @id @default(cuid())
+  userId         String
+  apiId          String
+  status         Int
+  responseTimeMs Int
+  ipAddress      String
+  errorReason    String?
+  createdAt      DateTime   @default(now())
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  api            CatalogAPI @relation(fields: [apiId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([apiId, createdAt])
+}
