@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import { Modal } from "../components/Modal";
 import { useToast } from "../components/Toast";
 
-const BACKEND_BASE = "http://localhost:3000";
+const BACKEND_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const API_PAYLOADS = {
   weather: [
@@ -125,7 +125,7 @@ export default function ApiKey() {
     setTestResult(null);
     try {
       const payload = buildExamplePayload(selectedSlug);
-      const res = await fetch(`/v1/${selectedSlug}`, {
+      const res = await fetch(`${BACKEND_BASE}/v1/${selectedSlug}`, {
         method: payload ? "POST" : "GET",
         headers: {
           "x-api-key": apiKey,
