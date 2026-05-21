@@ -1,6 +1,62 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { Modal } from "../components/Modal";
+import { useToast } from "../components/Toast";
+
+const BACKEND_BASE = "http://localhost:3000";
+
+const API_PAYLOADS = {
+  weather: [
+    { name: "city", type: "string", required: true, example: "San Francisco", description: "City name to fetch weather for." },
+    { name: "units", type: 'enum { "metric", "imperial" }', required: false, example: "metric", description: "Temperature units. Defaults to metric." },
+  ],
+  joke: [
+    { name: "category", type: 'enum { "programming", "general", "dad" }', required: false, example: "programming", description: "Filter jokes by category." },
+  ],
+  currency: [
+    { name: "base", type: "string", required: true, example: "USD", description: "ISO currency code to use as base." },
+    { name: "symbols", type: "array<string>", required: false, example: ["EUR", "GBP", "INR"], description: "Currencies to return rates for. Defaults to all." },
+  ],
+  quote: [
+    { name: "tag", type: "string", required: false, example: "technology", description: "Filter quotes by tag." },
+  ],
+  news: [
+    { name: "category", type: 'enum { "technology", "business", "sports", "health" }', required: false, example: "technology", description: "Headline category." },
+    { name: "country", type: "string", required: false, example: "US", description: "ISO country code." },
+    { name: "limit", type: "number", required: false, example: 5, description: "Max headlines to return (1-50)." },
+  ],
+};
+
+function getPayloadFields(slug) {
+  return API_PAYLOADS[slug] || [];
+}
+
+function buildExamplePayload(slug) {
+  const fields = getPayloadFields(slug);
+  if (fields.length === 0) return null;
+  const out = {};
+  for (const f of fields) out[f.name] = f.example;
+  return out;
+}
+
+function buildCurl(item, key) {
+  const payload = buildExamplePayload(item.slug);
+  if (payload) {
+    const body = JSON.stringify(payload, null, 2)
+      .split("\n")
+      .map((l, i) => (i === 0 ? l : `  ${l}`))
+      .join("\n");
+    return [
+      `curl -X POST ${BACKEND_BASE}${item.endpoint} \\`,
+      `  -H "x-api-key: ${key}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '${body}'`,
+    ].join("\n");
+  }
+  const method = (item.method || "GET").toUpperCase();
+  const methodFlag = method === "GET" ? "" : `-X ${method} `;
+  return `curl ${methodFlag}${BACKEND_BASE}${item.endpoint} \\\n  -H "x-api-key: ${key}"`;
+}
 
 export default function ApiKey() {
   const [apiKey, setApiKey] = useState(null);
@@ -14,6 +70,8 @@ export default function ApiKey() {
   const [testBusy, setTestBusy] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [testError, setTestError] = useState(null);
+  const [copiedCurl, setCopiedCurl] = useState(null);
+  const toast = useToast();
 
   function load() {
     api
@@ -38,11 +96,19 @@ export default function ApiKey() {
       const d = await api.post("/regenerate-key");
       setApiKey(d.apiKey);
       setConfirming(false);
+      toast.success("API key regenerated. All curl examples below now use the new key.");
     } catch (e) {
       setError(e.message);
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function copyCurl(slug, text) {
+    await navigator.clipboard.writeText(text);
+    setCopiedCurl(slug);
+    setTimeout(() => setCopiedCurl((s) => (s === slug ? null : s)), 1500);
   }
 
   async function copy() {
@@ -58,8 +124,14 @@ export default function ApiKey() {
     setTestError(null);
     setTestResult(null);
     try {
+      const payload = buildExamplePayload(selectedSlug);
       const res = await fetch(`/v1/${selectedSlug}`, {
-        headers: { "x-api-key": apiKey },
+        method: payload ? "POST" : "GET",
+        headers: {
+          "x-api-key": apiKey,
+          ...(payload ? { "Content-Type": "application/json" } : {}),
+        },
+        body: payload ? JSON.stringify(payload) : undefined,
       });
       const text = await res.text();
       let data;
@@ -126,13 +198,120 @@ export default function ApiKey() {
         </div>
       </div>
 
-      <div className="card">
-        <h2 className="font-semibold text-slate-900 mb-1">Quick start</h2>
-        <p className="text-xs text-slate-500 mb-4">Copy this curl and run it from any terminal.</p>
-        <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto leading-relaxed">
-{`curl -X POST http://localhost:3000/v1/weather \\
-  -H "x-api-key: ${reveal ? apiKey || "<your-key>" : "<your-key>"}"`}
-        </pre>
+      <div className="space-y-4">
+        <div>
+          <h2 className="font-semibold text-slate-900">API documentation</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Reference for every API you're subscribed to. Curls are bound to your live key — regenerate
+            it above and these examples update instantly.
+          </p>
+        </div>
+
+        {catalog.length === 0 ? (
+          <div className="card text-sm text-slate-600">
+            Subscribe to an API from the catalog to see its documentation here.
+          </div>
+        ) : (
+          catalog.map((item) => {
+            const displayKey = reveal ? apiKey || "<your-key>" : "<your-key>";
+            const realCurl = buildCurl(item, apiKey || "<your-key>");
+            const shownCurl = buildCurl(item, displayKey);
+            const payloadFields = getPayloadFields(item.slug);
+            const effectiveMethod = payloadFields.length > 0 ? "POST" : (item.method || "GET").toUpperCase();
+            return (
+              <div key={item.id} className="card space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-slate-900">{item.name}</h3>
+                      <span className="badge bg-slate-100 text-slate-700">{effectiveMethod}</span>
+                    </div>
+                    <p className="mt-0.5 text-xs font-mono text-slate-500">{item.endpoint}</p>
+                    {item.description && (
+                      <p className="mt-2 text-sm text-slate-600">{item.description}</p>
+                    )}
+                  </div>
+                  {item.subscription && (
+                    <span className="badge bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                      {item.subscription.remainingCalls.toLocaleString()} calls left
+                    </span>
+                  )}
+                </div>
+
+                {payloadFields.length > 0 && (
+                  <div>
+                    <div className="section-label mb-2">Payload fields</div>
+                    <div className="overflow-hidden rounded-lg border border-slate-200">
+                      <table className="w-full">
+                        <thead>
+                          <tr>
+                            <th className="table-th w-1/3">Property</th>
+                            <th className="table-th">Value</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {payloadFields.map((f) => (
+                            <tr key={f.name}>
+                              <td className="table-td align-top">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-mono text-xs text-slate-900">{f.name}</span>
+                                  {f.required ? (
+                                    <span className="badge bg-red-50 text-red-700 border border-red-200 text-[10px]">required</span>
+                                  ) : (
+                                    <span className="badge bg-slate-100 text-slate-600 text-[10px]">optional</span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] italic text-emerald-700 mt-0.5">{f.type}</div>
+                              </td>
+                              <td className="table-td">
+                                <div className="text-sm text-slate-700">{f.description}</div>
+                                <div className="mt-1 text-[11px] text-slate-500">
+                                  Example:{" "}
+                                  <code className="font-mono text-xs text-slate-700 break-all">
+                                    {JSON.stringify(f.example)}
+                                  </code>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="section-label">Example request</span>
+                    <button
+                      className="btn-secondary text-xs"
+                      onClick={() => copyCurl(item.slug, realCurl)}
+                    >
+                      {copiedCurl === item.slug ? "Copied!" : "Copy curl"}
+                    </button>
+                  </div>
+                  <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto leading-relaxed">
+                    {shownCurl}
+                  </pre>
+                  {!reveal && (
+                    <p className="mt-1.5 text-[11px] text-slate-500">
+                      Click "Reveal" above to show the actual key in the snippet — "Copy curl" already copies the real key.
+                    </p>
+                  )}
+                </div>
+
+                {item.dummyResponse && (
+                  <div>
+                    <div className="section-label mb-2">Sample response</div>
+                    <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto leading-relaxed">
+                      {JSON.stringify(item.dummyResponse, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
 
       <div className="card space-y-4">

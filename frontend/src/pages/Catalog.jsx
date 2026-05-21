@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { Modal } from "../components/Modal";
+import { useToast } from "../components/Toast";
 
 const ICON_BY_SLUG = {
   weather: "🌤️",
@@ -16,7 +17,7 @@ export default function Catalog() {
   const [selected, setSelected] = useState(null);
   const [selectedPackId, setSelectedPackId] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState(null);
+  const toast = useToast();
 
   function load() {
     api
@@ -30,19 +31,25 @@ export default function Catalog() {
   function openBuy(apiItem) {
     setSelected(apiItem);
     setSelectedPackId(apiItem.quotaPacks?.[0]?.id || null);
-    setMessage(null);
   }
 
   async function confirmBuy() {
     if (!selected || !selectedPackId) return;
     setBusy(true);
-    setMessage(null);
+    const wasSubscribed = !!selected.subscription;
+    const apiName = selected.name;
     try {
       const res = await api.post(`/buy/${selected.id}`, { packId: selectedPackId });
-      setMessage(res.message);
+      toast.success(
+        res?.message ||
+          (wasSubscribed
+            ? `Top-up successful for ${apiName}!`
+            : `Subscribed to ${apiName} successfully!`),
+      );
+      setSelected(null);
       load();
     } catch (e) {
-      setMessage(`Error: ${e.message}`);
+      toast.error(e.message || "Purchase failed");
     } finally {
       setBusy(false);
     }
@@ -139,17 +146,6 @@ export default function Catalog() {
                 </label>
               ))}
             </div>
-            {message && (
-              <div
-                className={`rounded-lg px-3 py-2 text-sm ${
-                  message.startsWith("Error")
-                    ? "bg-red-50 text-red-700 border border-red-200"
-                    : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                }`}
-              >
-                {message}
-              </div>
-            )}
           </div>
         )}
       </Modal>

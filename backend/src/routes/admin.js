@@ -106,7 +106,7 @@ router.get("/users", async (req, res, next) => {
     const page = Math.max(1, parseInt(req.query.page || "1", 10));
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize || "20", 10)));
     const where = {};
-    if (req.query.email) where.email = { contains: String(req.query.email), mode: "insensitive" };
+    if (req.query.email) where.email = { contains: String(req.query.email) };
     if (req.query.role) where.role = String(req.query.role);
 
     const [total, items] = await Promise.all([

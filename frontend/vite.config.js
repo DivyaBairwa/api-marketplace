@@ -16,7 +16,19 @@ const proxyPrefixes = [
 ];
 
 const proxy = Object.fromEntries(
-  proxyPrefixes.map((p) => [p, { target: backend, changeOrigin: true }]),
+  proxyPrefixes.map((p) => [
+    p,
+    {
+      target: backend,
+      changeOrigin: true,
+      bypass(req) {
+        const accept = req.headers.accept || "";
+        if (req.method === "GET" && accept.includes("text/html")) {
+          return req.url;
+        }
+      },
+    },
+  ]),
 );
 
 export default defineConfig({

@@ -150,7 +150,8 @@ router.all("/:slug", async (req, res) => {
 
   await logCall({ userId: user.id, apiId: api.id, status: 200, startedAt, ip });
   const parsed = parseApi(api);
-  res.json({ success: true, data: parsed.dummyResponse, remainingCalls });
+  const echoedRequest = req.body && Object.keys(req.body).length > 0 ? req.body : null;
+  res.json({ success: true, request: echoedRequest, data: parsed.dummyResponse, remainingCalls });
 });
 
 module.exports = router;

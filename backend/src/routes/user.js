@@ -31,6 +31,7 @@ router.get("/catalog", authenticate, async (req, res, next) => {
         pricePerQuota: parsed.pricePerQuota,
         quotaAmount: parsed.quotaAmount,
         quotaPacks: parsed.quotaPacks,
+        dummyResponse: parsed.dummyResponse,
         subscription: sub
           ? { remainingCalls: sub.remainingCalls, totalPurchased: sub.totalPurchased }
           : null,
