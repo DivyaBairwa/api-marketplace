@@ -7,7 +7,7 @@ function buildUrl(path, query) {
       if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, v);
     });
   }
-  return url.pathname + url.search;
+  return BASE ? url.toString() : url.pathname + url.search;
 }
 
 function getToken() {
