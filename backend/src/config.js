@@ -3,7 +3,11 @@ require("dotenv").config();
 const required = ["JWT_SECRET", "DATABASE_URL"];
 for (const key of required) {
   if (!process.env[key]) {
-    console.warn(`[config] WARNING: ${key} is not set`);
+    const message = `[config] ${key} is not set`;
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(message);
+    }
+    console.warn(`WARNING: ${message}`);
   }
 }
 

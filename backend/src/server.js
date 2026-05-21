@@ -1,7 +1,7 @@
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
-const { port, corsOrigin } = require("./config");
+const { port, corsOrigin, isProd } = require("./config");
 const prisma = require("./prisma");
 const { notFound, errorHandler } = require("./errors");
 
@@ -41,6 +41,9 @@ async function maybeSeed() {
     }
   } catch (e) {
     console.warn("[startup] seed check failed:", e.message);
+    if (isProd) {
+      throw e;
+    }
   }
 }
 
